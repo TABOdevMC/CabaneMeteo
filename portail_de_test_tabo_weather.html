@@ -1,0 +1,1762 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TABO Weather - Station de Test, Cartes & Règles de Priorité</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- Leaflet CSS & JS for Interactive Map -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700&display=swap');
+        body {
+            font-family: 'Plus Jakarta Sans', sans-serif;
+        }
+        /* Leaflet custom map container height and override */
+        #interactive-map {
+            height: 100%;
+            width: 100%;
+            border-radius: 0.75rem;
+            z-index: 10;
+        }
+        /* Custom scrollbar */
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #f1f5f9;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #94a3b8;
+        }
+    </style>
+</head>
+<body class="bg-slate-900 text-slate-100 min-h-screen flex flex-col">
+
+    <!-- HEADER -->
+    <header class="border-b border-slate-800 bg-slate-950/80 backdrop-blur sticky top-0 z-50 px-4 py-3">
+        <div class="max-w-7xl mx-auto flex flex-col sm:flex-row justify-between items-center gap-4">
+            <div class="flex items-center gap-3">
+                <div class="bg-gradient-to-tr from-sky-500 to-blue-600 p-2.5 rounded-xl shadow-lg shadow-sky-500/20">
+                    <i class="fa-solid fa-cloud-sun-rain text-xl text-white"></i>
+                </div>
+                <div>
+                    <h1 class="text-xl font-bold tracking-tight bg-gradient-to-r from-white to-slate-400 bg-clip-text text-transparent">TABO Weather</h1>
+                    <p class="text-xs text-slate-400">Environnement de test & Règles Métiers</p>
+                </div>
+            </div>
+            
+            <!-- Mode Selector & API status -->
+            <div class="flex flex-wrap items-center gap-3">
+                <div class="bg-slate-900 p-1 rounded-lg border border-slate-800 flex">
+                    <button id="btn-api-mode" onclick="setMode('api')" class="px-3 py-1.5 rounded-md text-xs font-semibold transition-all bg-sky-500 text-white">
+                        <i class="fa-solid fa-cloud text-xs mr-1"></i> API Live
+                    </button>
+                    <button id="btn-sim-mode" onclick="setMode('sim')" class="px-3 py-1.5 rounded-md text-xs font-semibold transition-all text-slate-400 hover:text-white">
+                        <i class="fa-solid fa-sliders text-xs mr-1"></i> Simulateur
+                    </button>
+                </div>
+                
+                <button onclick="toggleModal('modal-account')" class="bg-slate-800 hover:bg-slate-700 text-slate-200 px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-2 border border-slate-700 transition">
+                    <img id="header-avatar" src="https://api.dicebear.com/7.x/bottts/svg?seed=tabo" class="w-5 h-5 rounded-full bg-slate-600" alt="Avatar">
+                    <span id="header-username">Testeur Pro</span>
+                    <i class="fa-solid fa-cog"></i>
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- MAIN CONTENT CONTAINER -->
+    <main class="flex-1 max-w-7xl w-full mx-auto p-4 grid grid-cols-1 lg:grid-cols-12 gap-6">
+        
+        <!-- ================= LEFT COLUMN: CONTROL & INPUTS ================= -->
+        <section class="lg:col-span-4 flex flex-col gap-6">
+            
+            <!-- LIVE API CONTROL CARD -->
+            <div id="api-control-card" class="bg-slate-950/60 border border-slate-800 rounded-2xl p-5 backdrop-blur">
+                <h2 class="text-md font-semibold mb-4 flex items-center justify-between">
+                    <span><i class="fa-solid fa-magnifying-glass text-sky-400 mr-2"></i>Recherche Météo API</span>
+                    <span class="text-[10px] bg-emerald-500/10 text-emerald-400 px-2 py-0.5 rounded-full border border-emerald-500/20">Connecté</span>
+                </h2>
+                <div class="space-y-4">
+                    <div>
+                        <label class="text-xs text-slate-400 block mb-1">Clé API OpenWeather</label>
+                        <input type="text" id="api-key" value="0c16dd66a17aa3ee4fee1c61315b7ce8" class="w-full bg-slate-900 border border-slate-800 rounded-lg px-3 py-2 text-xs focus:ring-1 focus:ring-sky-500 outline-none text-slate-300">
+                    </div>
+                    <div>
+                        <label class="text-xs text-slate-400 block mb-1">Ville à cibler</label>
+                        <div class="flex gap-2">
+                            <input type="text" id="search-city" value="Paris" class="flex-1 bg-slate-900 border border-slate-800 rounded-lg px-3 py-2 text-sm focus:ring-1 focus:ring-sky-500 outline-none" placeholder="Ex: Paris, Lyon, Chamonix...">
+                            <button onclick="fetchWeatherData()" class="bg-sky-600 hover:bg-sky-500 text-white px-4 py-2 rounded-lg text-sm transition font-medium flex items-center gap-1">
+                                <i class="fa-solid fa-sync" id="api-sync-icon"></i>
+                            </button>
+                        </div>
+                    </div>
+                    <div id="api-error-msg" class="hidden text-xs bg-red-500/10 text-red-400 p-2.5 rounded-lg border border-red-500/20"></div>
+                </div>
+            </div>
+
+            <!-- SIMULATOR CONTROL CARD -->
+            <div id="sim-control-card" class="bg-slate-950/60 border border-slate-800 rounded-2xl p-5 backdrop-blur hidden">
+                <div class="flex justify-between items-center mb-4">
+                    <h2 class="text-md font-semibold"><i class="fa-solid fa-sliders text-amber-400 mr-2"></i>Simulateur de Conditions</h2>
+                    <button onclick="resetSimulator()" class="text-[10px] bg-slate-800 hover:bg-slate-700 px-2 py-1 rounded text-slate-300">Réinitialiser</button>
+                </div>
+                <div class="space-y-4 max-h-[500px] overflow-y-auto pr-1">
+                    
+                    <!-- Température -->
+                    <div>
+                        <div class="flex justify-between text-xs mb-1">
+                            <span class="text-slate-400">Température au sol</span>
+                            <span class="font-semibold text-sky-300" id="val-sim-temp">15°C</span>
+                        </div>
+                        <input type="range" id="sim-temp" min="-25" max="45" value="15" step="0.5" oninput="updateSimValue('temp', this.value)" class="w-full h-1.5 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-sky-500">
+                    </div>
+
+                    <!-- Temp 850hPa -->
+                    <div>
+                        <div class="flex justify-between text-xs mb-1">
+                            <span class="text-slate-400">Température Altitude (850hPa)</span>
+                            <span class="font-semibold text-blue-300" id="val-sim-temp850">2°C</span>
+                        </div>
+                        <input type="range" id="sim-temp850" min="-15" max="25" value="2" step="0.5" oninput="updateSimValue('temp850', this.value)" class="w-full h-1.5 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-blue-500">
+                    </div>
+
+                    <!-- Humidité -->
+                    <div>
+                        <div class="flex justify-between text-xs mb-1">
+                            <span class="text-slate-400">Humidité</span>
+                            <span class="font-semibold text-teal-300" id="val-sim-humidity">65%</span>
+                        </div>
+                        <input type="range" id="sim-humidity" min="0" max="100" value="65" oninput="updateSimValue('humidity', this.value)" class="w-full h-1.5 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-teal-500">
+                    </div>
+
+                    <!-- Vent Moyen & Rafales -->
+                    <div class="grid grid-cols-2 gap-3">
+                        <div>
+                            <div class="flex justify-between text-[11px] mb-1">
+                                <span class="text-slate-400">Vent Moyen</span>
+                                <span class="font-semibold" id="val-sim-wind">20 km/h</span>
+                            </div>
+                            <input type="range" id="sim-wind" min="0" max="150" value="20" oninput="updateSimValue('wind', this.value)" class="w-full h-1.5 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-indigo-500">
+                        </div>
+                        <div>
+                            <div class="flex justify-between text-[11px] mb-1">
+                                <span class="text-slate-400">Rafales</span>
+                                <span class="font-semibold" id="val-sim-gust">35 km/h</span>
+                            </div>
+                            <input type="range" id="sim-gust" min="0" max="200" value="35" oninput="updateSimValue('gust', this.value)" class="w-full h-1.5 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-purple-500">
+                        </div>
+                    </div>
+
+                    <!-- Pluie ou Neige (mm/h) -->
+                    <div class="grid grid-cols-2 gap-3">
+                        <div>
+                            <div class="flex justify-between text-[11px] mb-1">
+                                <span class="text-slate-400">Précipitations Pluie</span>
+                                <span class="font-semibold text-blue-400" id="val-sim-rain">0 mm/h</span>
+                            </div>
+                            <input type="range" id="sim-rain" min="0" max="50" value="0" step="0.1" oninput="updateSimValue('rain', this.value)" class="w-full h-1.5 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-blue-500">
+                        </div>
+                        <div>
+                            <div class="flex justify-between text-[11px] mb-1">
+                                <span class="text-slate-400">Chute de Neige</span>
+                                <span class="font-semibold text-violet-400" id="val-sim-snow">0 cm/h</span>
+                            </div>
+                            <input type="range" id="sim-snow" min="0" max="20" value="0" step="0.1" oninput="updateSimValue('snow', this.value)" class="w-full h-1.5 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-violet-500">
+                        </div>
+                    </div>
+
+                    <!-- Nébulosité & Visibilité -->
+                    <div class="grid grid-cols-2 gap-3">
+                        <div>
+                            <div class="flex justify-between text-[11px] mb-1">
+                                <span class="text-slate-400">Nébulosité</span>
+                                <span class="font-semibold text-gray-400" id="val-sim-clouds">45%</span>
+                            </div>
+                            <input type="range" id="sim-clouds" min="0" max="100" value="45" oninput="updateSimValue('clouds', this.value)" class="w-full h-1.5 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-gray-500">
+                        </div>
+                        <div>
+                            <div class="flex justify-between text-[11px] mb-1">
+                                <span class="text-slate-400">Visibilité</span>
+                                <span class="font-semibold text-yellow-400" id="val-sim-visibility">10 km</span>
+                            </div>
+                            <input type="range" id="sim-visibility" min="0.05" max="20" value="10" step="0.1" oninput="updateSimValue('visibility', this.value)" class="w-full h-1.5 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-yellow-500">
+                        </div>
+                    </div>
+
+                    <!-- CAPE & Lifted Index (Convection) -->
+                    <div class="grid grid-cols-2 gap-3">
+                        <div>
+                            <div class="flex justify-between text-[11px] mb-1">
+                                <span class="text-slate-400">CAPE (J/kg)</span>
+                                <span class="font-semibold text-orange-400" id="val-sim-cape">0</span>
+                            </div>
+                            <input type="range" id="sim-cape" min="0" max="4500" value="0" step="50" oninput="updateSimValue('cape', this.value)" class="w-full h-1.5 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-orange-500">
+                        </div>
+                        <div>
+                            <div class="flex justify-between text-[11px] mb-1">
+                                <span class="text-slate-400">Lifted Index (LI)</span>
+                                <span class="font-semibold text-orange-300" id="val-sim-li">0</span>
+                            </div>
+                            <input type="range" id="sim-li" min="-15" max="10" value="0" step="1" oninput="updateSimValue('li', this.value)" class="w-full h-1.5 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-amber-500">
+                        </div>
+                    </div>
+
+                    <!-- Paramètres cumuls 24h/48h (pour alertes) -->
+                    <div class="border-t border-slate-800 pt-3 mt-2">
+                        <span class="text-xs font-semibold text-slate-300 block mb-2">Cumuls Additionnels (pour tests Alertes)</span>
+                        <div class="grid grid-cols-2 gap-3">
+                            <div>
+                                <label class="text-[10px] text-slate-400 block mb-1">Pluie 24h (mm)</label>
+                                <input type="number" id="sim-rain-24h" value="0" class="w-full bg-slate-900 border border-slate-800 rounded px-2 py-1 text-xs text-white">
+                            </div>
+                            <div>
+                                <label class="text-[10px] text-slate-400 block mb-1">Pluie 48h (mm)</label>
+                                <input type="number" id="sim-rain-48h" value="0" class="w-full bg-slate-900 border border-slate-800 rounded px-2 py-1 text-xs text-white">
+                            </div>
+                            <div>
+                                <label class="text-[10px] text-slate-400 block mb-1">Neige 24h (cm)</label>
+                                <input type="number" id="sim-snow-24h" value="0" class="w-full bg-slate-900 border border-slate-800 rounded px-2 py-1 text-xs text-white">
+                            </div>
+                            <div>
+                                <label class="text-[10px] text-slate-400 block mb-1">Neige 48h (cm)</label>
+                                <input type="number" id="sim-snow-48h" value="0" class="w-full bg-slate-900 border border-slate-800 rounded px-2 py-1 text-xs text-white">
+                            </div>
+                        </div>
+                    </div>
+
+                </div>
+            </div>
+
+            <!-- COMPTE & CONFIG STATUS CARD -->
+            <div class="bg-slate-950/60 border border-slate-800 rounded-2xl p-5 backdrop-blur">
+                <h2 class="text-sm font-semibold mb-3 flex justify-between items-center">
+                    <span><i class="fa-solid fa-user-gear text-teal-400 mr-2"></i>Compte & Paramètres</span>
+                    <span id="badge-pro" class="text-[9px] font-bold px-2 py-0.5 rounded bg-amber-500/10 text-amber-400 border border-amber-500/20">Config standard</span>
+                </h2>
+                
+                <div class="space-y-2.5 text-xs">
+                    <div class="flex justify-between items-center p-2 rounded-lg bg-slate-900/50 border border-slate-800/80">
+                        <div>
+                            <span class="block text-slate-200 font-medium">Alertes Avancées</span>
+                            <span class="text-[10px] text-slate-400">Activer Gel*, Brouillard*, Sécheresse*</span>
+                        </div>
+                        <label class="relative inline-flex items-center cursor-pointer">
+                            <input type="checkbox" id="chk-pro-alerts" onchange="toggleProAlerts()" class="sr-only peer">
+                            <div class="w-9 h-5 bg-slate-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-slate-400 after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-teal-500 peer-checked:after:bg-white peer-checked:after:border-transparent"></div>
+                        </label>
+                    </div>
+
+                    <div class="flex justify-between items-center p-2 rounded-lg bg-slate-900/50 border border-slate-800/80">
+                        <div>
+                            <span class="block text-slate-200 font-medium font-mono">Exportation de Données</span>
+                            <span class="text-[10px] text-slate-400">Télécharger les métriques (CSV)</span>
+                        </div>
+                        <button onclick="exportToCSV()" class="bg-slate-800 hover:bg-slate-700 text-slate-300 px-2 py-1.5 rounded flex items-center gap-1 transition">
+                            <i class="fa-solid fa-file-excel text-emerald-400"></i> Export
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+        </section>
+
+        <!-- ================= MIDDLE COLUMN: MAIN DASHBOARD & RULES ================= -->
+        <section class="lg:col-span-5 flex flex-col gap-6">
+
+            <!-- METEO ACTUELLE / VALUES (Page 5) -->
+            <div class="bg-slate-950/60 border border-slate-800 rounded-2xl p-5 backdrop-blur">
+                <div class="flex justify-between items-start mb-4">
+                    <div>
+                        <span class="text-xs text-sky-400 font-semibold uppercase tracking-wider">Météo Actuelle</span>
+                        <h2 class="text-2xl font-bold" id="title-city-name">Paris</h2>
+                    </div>
+                    <div class="text-right">
+                        <span class="text-xs text-slate-400 block" id="current-datetime">Aujourd'hui, --:--</span>
+                        <span class="text-[10px] uppercase font-bold text-slate-400 px-2 py-0.5 rounded bg-slate-800" id="current-coords">0.00N, 0.00E</span>
+                    </div>
+                </div>
+
+                <!-- Main Indicator Grid (with required Page 5 icons & color gradients) -->
+                <div class="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-5">
+                    
+                    <!-- Température -->
+                    <div class="bg-slate-900/40 border border-slate-800/60 p-3 rounded-xl flex items-center gap-3">
+                        <div id="icon-temp" class="text-2xl transition duration-500"><i class="fa-solid fa-thermometer-half"></i></div>
+                        <div>
+                            <span class="text-[10px] text-slate-400 block">Température</span>
+                            <span id="disp-temp" class="text-base font-bold text-white">--°C</span>
+                        </div>
+                    </div>
+
+                    <!-- UV -->
+                    <div class="bg-slate-900/40 border border-slate-800/60 p-3 rounded-xl flex items-center gap-3">
+                        <div id="icon-uv" class="text-2xl transition duration-500"><i class="fa-solid fa-sun"></i></div>
+                        <div>
+                            <span class="text-[10px] text-slate-400 block">Indice UV</span>
+                            <span id="disp-uv" class="text-base font-bold text-white">--</span>
+                        </div>
+                    </div>
+
+                    <!-- Pollution -->
+                    <div class="bg-slate-900/40 border border-slate-800/60 p-3 rounded-xl flex items-center gap-3">
+                        <div id="icon-pollution" class="text-2xl transition duration-500"><i class="fa-solid fa-cloud-sun"></i></div>
+                        <div>
+                            <span class="text-[10px] text-slate-400 block">Pollution</span>
+                            <span id="disp-pollution" class="text-xs font-semibold text-white">--</span>
+                        </div>
+                    </div>
+
+                    <!-- Pollen -->
+                    <div class="bg-slate-900/40 border border-slate-800/60 p-3 rounded-xl flex items-center gap-3">
+                        <div id="icon-pollen" class="text-2xl transition duration-500"><i class="fa-solid fa-seedling"></i></div>
+                        <div>
+                            <span class="text-[10px] text-slate-400 block">Pollen</span>
+                            <span id="disp-pollen" class="text-xs font-semibold text-white">--</span>
+                        </div>
+                    </div>
+
+                    <!-- Humidité -->
+                    <div class="bg-slate-900/40 border border-slate-800/60 p-3 rounded-xl flex items-center gap-3">
+                        <div id="icon-humidity" class="text-2xl transition duration-500 flex items-center"><i class="fa-solid fa-droplet"></i><i class="fa-solid fa-droplet -ml-2 text-xs opacity-80"></i></div>
+                        <div>
+                            <span class="text-[10px] text-slate-400 block">Humidité</span>
+                            <span id="disp-humidity" class="text-base font-bold text-white">--%</span>
+                        </div>
+                    </div>
+
+                    <!-- Point de rosée -->
+                    <div class="bg-slate-900/40 border border-slate-800/60 p-3 rounded-xl flex items-center gap-3">
+                        <div id="icon-dewpoint" class="text-2xl transition duration-500 flex items-center"><i class="fa-solid fa-temperature-low"></i><span class="text-[9px] ml-0.5"><i class="fa-solid fa-droplet"></i></span></div>
+                        <div>
+                            <span class="text-[10px] text-slate-400 block">Pt de rosée</span>
+                            <span id="disp-dewpoint" class="text-base font-bold text-white">--°C</span>
+                        </div>
+                    </div>
+
+                    <!-- Visibilité -->
+                    <div class="bg-slate-900/40 border border-slate-800/60 p-3 rounded-xl flex items-center gap-3">
+                        <div id="icon-visibility" class="text-2xl transition duration-500"><i class="fa-solid fa-smog"></i></div>
+                        <div>
+                            <span class="text-[10px] text-slate-400 block">Visibilité</span>
+                            <span id="disp-visibility" class="text-base font-bold text-white">-- km</span>
+                        </div>
+                    </div>
+
+                    <!-- Pluie / Précip -->
+                    <div class="bg-slate-900/40 border border-slate-800/60 p-3 rounded-xl flex items-center gap-3">
+                        <div id="icon-rain" class="text-2xl transition duration-500"><i class="fa-solid fa-cloud-showers-heavy"></i></div>
+                        <div>
+                            <span class="text-[10px] text-slate-400 block">Pluie</span>
+                            <span id="disp-rain" class="text-xs font-bold text-white">-- mm/h</span>
+                        </div>
+                    </div>
+
+                    <!-- Neige -->
+                    <div class="bg-slate-900/40 border border-slate-800/60 p-3 rounded-xl flex items-center gap-3">
+                        <div id="icon-snow" class="text-2xl transition duration-500"><i class="fa-solid fa-snowflake"></i></div>
+                        <div>
+                            <span class="text-[10px] text-slate-400 block">Neige</span>
+                            <span id="disp-snow" class="text-xs font-bold text-white">-- cm/h</span>
+                        </div>
+                    </div>
+
+                    <!-- Vent + Rafales -->
+                    <div class="bg-slate-900/40 border border-slate-800/60 p-3 rounded-xl flex items-center gap-3 col-span-2">
+                        <div id="icon-wind" class="text-2xl transition duration-500 flex items-center gap-1">
+                            <i class="fa-solid fa-arrow-up transition-transform duration-500" id="wind-arrow"></i>
+                            <i class="fa-solid fa-wind text-xs"></i>
+                        </div>
+                        <div class="flex-1 grid grid-cols-2">
+                            <div>
+                                <span class="text-[9px] text-slate-400 block">Moyen</span>
+                                <span id="disp-wind" class="text-xs font-bold text-white">-- km/h</span>
+                            </div>
+                            <div>
+                                <span class="text-[9px] text-slate-400 block">Rafale</span>
+                                <span id="disp-gust" class="text-xs font-bold text-white">-- km/h</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- CAPE / LI -->
+                    <div class="bg-slate-900/40 border border-slate-800/60 p-3 rounded-xl flex items-center gap-3">
+                        <div id="icon-cape" class="text-2xl transition duration-500"><i class="fa-solid fa-bolt"></i></div>
+                        <div>
+                            <span class="text-[10px] text-slate-400 block">CAPE / LI</span>
+                            <span id="disp-convection" class="text-[11px] font-bold text-white">-- / --</span>
+                        </div>
+                    </div>
+
+                </div>
+
+                <!-- TEMPS SENSIBLE ENGIND (Page 1-3) -->
+                <div class="bg-slate-900 p-4 rounded-xl border border-slate-800">
+                    <span class="text-xs text-indigo-400 font-semibold block uppercase tracking-wider mb-1">Temps Sensible Déterminé (Par Priorité)</span>
+                    <div class="flex items-center gap-3">
+                        <div id="temps-sensible-icon" class="text-3xl text-sky-400">
+                            <i class="fa-solid fa-circle-question"></i>
+                        </div>
+                        <div>
+                            <h3 id="temps-sensible-title" class="text-lg font-bold text-white">Analyse en cours...</h3>
+                            <p id="temps-sensible-desc" class="text-xs text-slate-400">Aucun calcul effectué.</p>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+
+            <!-- ALERTES METEO MODULE (Page 3-4) -->
+            <div class="bg-slate-950/60 border border-slate-800 rounded-2xl p-5 backdrop-blur flex-1 flex flex-col">
+                <div class="flex justify-between items-center mb-4">
+                    <h2 class="text-md font-semibold flex items-center gap-2">
+                        <i class="fa-solid fa-triangle-exclamation text-amber-500"></i>
+                        <span>Vigilances Météo Active(s)</span>
+                    </h2>
+                    <span class="text-[10px] text-slate-400 bg-slate-900 px-2 py-0.5 rounded border border-slate-800">Règles Page 4</span>
+                </div>
+
+                <!-- Active Alert Box -->
+                <div id="alerts-container" class="space-y-2 flex-1 overflow-y-auto max-h-[300px] pr-1">
+                    <!-- Dynamic Alert Cards go here -->
+                    <div class="text-center py-8 text-slate-500 text-sm">
+                        <i class="fa-solid fa-circle-check text-emerald-500 text-2xl mb-2 block"></i>
+                        Aucun phénomène dangereux détecté
+                    </div>
+                </div>
+            </div>
+
+        </section>
+
+        <!-- ================= RIGHT COLUMN: GRAPHS & INTERACTIVE MAP ================= -->
+        <section class="lg:col-span-3 flex flex-col gap-6">
+
+            <!-- GRAPH MODULE (Page 1) -->
+            <div class="bg-slate-950/60 border border-slate-800 rounded-2xl p-5 backdrop-blur">
+                <h2 class="text-sm font-semibold mb-3 flex items-center justify-between">
+                    <span><i class="fa-solid fa-chart-line text-pink-400 mr-2"></i>Graphiques Évolutifs</span>
+                    <span class="text-[10px] text-slate-400">Heures / Jours</span>
+                </h2>
+                <div class="h-[180px] w-full relative">
+                    <canvas id="weather-trend-chart"></canvas>
+                </div>
+            </div>
+
+            <!-- NEWS & DAILY METEO INFO (Page 1) -->
+            <div class="bg-slate-950/60 border border-slate-800 rounded-2xl p-5 backdrop-blur">
+                <h2 class="text-sm font-semibold mb-2.5 flex items-center justify-between">
+                    <span><i class="fa-solid fa-bullhorn text-sky-400 mr-2"></i>Info Météo du Jour</span>
+                    <span class="text-[9px] uppercase font-bold text-sky-400 bg-sky-400/10 px-1.5 py-0.5 rounded">Aujourd'hui</span>
+                </h2>
+                <div class="bg-slate-900/80 p-3 rounded-xl border border-slate-800/80 text-xs text-slate-300">
+                    <p id="news-text" class="italic leading-relaxed">
+                        "L'anticyclone s'installe sur l'Europe de l'Ouest, assurant des conditions d'abord calmes. Les développements convectifs à surveiller en fin de journée d'après l'indice CAPE."
+                    </p>
+                </div>
+            </div>
+
+            <!-- INTERACTIVE MAP SIMULATION (Page 4-5) -->
+            <div class="bg-slate-950/60 border border-slate-800 rounded-2xl p-5 backdrop-blur flex-1 flex flex-col min-h-[350px]">
+                <div class="flex justify-between items-center mb-3">
+                    <h2 class="text-sm font-semibold flex items-center gap-1.5">
+                        <i class="fa-solid fa-map-location-dot text-blue-400"></i>
+                        <span>Cartographie Leaflet</span>
+                    </h2>
+                    <select id="map-layer" onchange="updateMapLayer()" class="bg-slate-900 border border-slate-800 rounded px-2 py-0.5 text-[11px] text-slate-300 max-w-[150px]">
+                        <option value="1">1. Température (1000/850 hPa)</option>
+                        <option value="2">2. Vent (Rafales / Moyen)</option>
+                        <option value="3">3. Satellite / Nuages</option>
+                        <option value="4">4. Radar + Éclairs</option>
+                        <option value="5">5. Pluie / Neige</option>
+                        <option value="6">6. Pression</option>
+                        <option value="7">7. Pollution (PM2.5, PM10, NO2)</option>
+                        <option value="8">8. Pollen (Bouleau, Graminées)</option>
+                        <option value="9">9. Humidité</option>
+                        <option value="10">10. Probabilité de précipitations</option>
+                        <option value="11">11. Température ressentie</option>
+                        <option value="12">12. Point de rosée</option>
+                        <option value="13">13. Visibilité</option>
+                        <option value="14">14. Vigilances</option>
+                        <option value="15" selected>15. Observations Participatives</option>
+                    </select>
+                </div>
+
+                <!-- Sub-filters inside map based on selected layer -->
+                <div id="map-subfilters" class="mb-2 hidden">
+                    <!-- Dynamically generated sub-menus -->
+                </div>
+
+                <!-- Leaflet Map Container -->
+                <div class="relative bg-slate-950 rounded-xl border border-slate-800 flex-1 overflow-hidden min-h-[220px]">
+                    <div id="interactive-map"></div>
+                </div>
+            </div>
+
+        </section>
+
+    </main>
+
+    <!-- BOTTOM OBSERVATIONS PARTICIPATIVES BOARD (Page 5-6) -->
+    <section class="max-w-7xl w-full mx-auto p-4 border-t border-slate-800 bg-slate-950/40">
+        <div class="grid grid-cols-1 md:grid-cols-12 gap-6">
+            
+            <!-- Observation Form -->
+            <div class="md:col-span-5 bg-slate-950/40 border border-slate-800 rounded-2xl p-5">
+                <h3 class="text-md font-semibold mb-3 flex items-center justify-between">
+                    <span><i class="fa-solid fa-comments text-violet-400 mr-2"></i>Observation Participative</span>
+                    <span class="text-[10px] text-slate-400">Formulaire dynamique</span>
+                </h3>
+                <form id="form-observation" onsubmit="submitObservation(event)" class="space-y-3">
+                    <div class="grid grid-cols-2 gap-3">
+                        <div>
+                            <label class="text-[10px] text-slate-400 block mb-1">Catégorie principale</label>
+                            <select id="obs-category" class="w-full bg-slate-900 border border-slate-800 rounded px-2.5 py-1.5 text-xs text-white" onchange="updateObsOptions()">
+                                <option value="pluie">Pluie [mm/h]</option>
+                                <option value="nebulosite">Nébulosité</option>
+                                <option value="eclairs">Éclairs [é/min]</option>
+                                <option value="vent">Vent [km/h]</option>
+                                <option value="verglas">Verglas</option>
+                                <option value="temp">Température [°C]</option>
+                                <option value="neige">Neige [cm]</option>
+                                <option value="brouillard">Brouillard [m]</option>
+                                <option value="speciaux">Phénomènes Spéciaux</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="text-[10px] text-slate-400 block mb-1">Observations possibles</label>
+                            <select id="obs-value" class="w-full bg-slate-900 border border-slate-800 rounded px-2.5 py-1.5 text-xs text-white">
+                                <!-- Populated dynamically by JS -->
+                            </select>
+                        </div>
+                    </div>
+                    
+                    <div class="grid grid-cols-2 gap-3">
+                        <div>
+                            <label class="text-[10px] text-slate-400 block mb-1">Lieu du signalement</label>
+                            <input type="text" id="obs-location" value="Paris" class="w-full bg-slate-900 border border-slate-800 rounded px-2.5 py-1.5 text-xs text-white" placeholder="Ville ou région">
+                        </div>
+                        <div>
+                            <!-- Dynamic Input replacing "température relevée" all the time -->
+                            <label id="lbl-dynamic-measure" class="text-[10px] text-slate-400 block mb-1">Mesure relevée</label>
+                            <input type="number" id="obs-dynamic-measure" value="12" step="0.1" class="w-full bg-slate-900 border border-slate-800 rounded px-2.5 py-1.5 text-xs text-white">
+                        </div>
+                    </div>
+
+                    <button type="submit" class="w-full bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 text-white py-2 rounded-lg text-xs font-bold transition shadow-lg shadow-indigo-500/15">
+                        Soumettre l'observation et épingler sur la carte
+                    </button>
+                </form>
+            </div>
+
+            <!-- Live observations timeline -->
+            <div class="md:col-span-7 bg-slate-950/40 border border-slate-800 rounded-2xl p-5 flex flex-col h-[220px]">
+                <h3 class="text-sm font-semibold mb-2 flex items-center justify-between">
+                    <span><i class="fa-solid fa-satellite-dish text-sky-400 mr-2"></i>Flux d'Observations en Direct</span>
+                    <button onclick="clearObservations()" class="text-[9px] bg-slate-800 text-slate-400 hover:bg-slate-700 px-2 py-0.5 rounded">Effacer</button>
+                </h3>
+                <div class="flex-1 overflow-y-auto space-y-2 pr-1" id="observations-timeline">
+                    <!-- Default simulated observations -->
+                </div>
+            </div>
+
+        </div>
+    </section>
+
+    <!-- FOOTER -->
+    <footer class="bg-slate-950 border-t border-slate-800/80 px-4 py-4 text-center text-xs text-slate-500">
+        <p>© 2026 TABO Weather - Conforme aux exigences du cahier des charges technique v2.0.</p>
+    </footer>
+
+    <!-- ACCOUNT CONFIG MODAL (Page 1 & 4) -->
+    <div id="modal-account" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm hidden flex items-center justify-center z-50 p-4">
+        <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6 w-full max-w-md shadow-2xl relative">
+            <button onclick="toggleModal('modal-account')" class="absolute top-4 right-4 text-slate-400 hover:text-white transition">
+                <i class="fa-solid fa-times text-lg"></i>
+            </button>
+            
+            <h3 class="text-md font-bold mb-4 flex items-center gap-2 text-white">
+                <i class="fa-solid fa-circle-user text-sky-400"></i>
+                <span>Mon Compte TABO Weather</span>
+            </h3>
+
+            <div class="space-y-4">
+                <div class="flex items-center gap-4 border-b border-slate-800 pb-4">
+                    <img id="modal-avatar" src="https://api.dicebear.com/7.x/bottts/svg?seed=tabo" class="w-14 h-14 rounded-full bg-slate-800 border-2 border-sky-500" alt="Avatar">
+                    <div>
+                        <input type="text" id="config-username" value="Testeur Pro" class="bg-slate-800 border border-slate-700 rounded px-2 py-1 text-sm text-white font-bold mb-1" oninput="document.getElementById('header-username').innerText = this.value">
+                        <input type="email" value="expert@tabo-weather.fr" class="bg-transparent border-none p-0 text-xs text-slate-400 outline-none block" disabled>
+                    </div>
+                </div>
+
+                <div>
+                    <h4 class="text-xs font-semibold text-slate-300 uppercase tracking-wider mb-2">Style d'Avatar</h4>
+                    <div class="grid grid-cols-4 gap-2">
+                        <button onclick="changeAvatar('tabo')" class="p-1 rounded bg-slate-800 border border-slate-700 hover:border-sky-500 text-[10px]">Robot</button>
+                        <button onclick="changeAvatar('shadow')" class="p-1 rounded bg-slate-800 border border-slate-700 hover:border-sky-500 text-[10px]">Humain</button>
+                        <button onclick="changeAvatar('sunny')" class="p-1 rounded bg-slate-800 border border-slate-700 hover:border-sky-500 text-[10px]">Pixel</button>
+                        <button onclick="changeAvatar('storm')" class="p-1 rounded bg-slate-800 border border-slate-700 hover:border-sky-500 text-[10px]">Aventurier</button>
+                    </div>
+                </div>
+
+                <div>
+                    <h4 class="text-xs font-semibold text-slate-300 uppercase tracking-wider mb-2">Abonnements & Configurations</h4>
+                    <div class="space-y-2">
+                        <label class="flex items-center gap-2.5 text-xs text-slate-300">
+                            <input type="checkbox" checked class="rounded border-slate-700 text-sky-500 bg-slate-800">
+                            <span>Recevoir les alertes par email</span>
+                        </label>
+                        <label class="flex items-center gap-2.5 text-xs text-slate-300">
+                            <input type="checkbox" id="chk-pro-alerts-modal" onchange="syncModalCheckbox(this.checked)" class="rounded border-slate-700 text-sky-500 bg-slate-800">
+                            <span>Activer le mode météo professionnelle (Alertes complètes*)</span>
+                        </label>
+                    </div>
+                    <span class="text-[10px] text-slate-500 italic block mt-1">*Gel, Brouillard et Sécheresse dépendent de ce paramètre.</span>
+                </div>
+            </div>
+
+            <div class="mt-6 flex justify-end">
+                <button onclick="toggleModal('modal-account')" class="bg-sky-600 hover:bg-sky-500 text-white px-4 py-2 rounded-lg text-xs font-bold transition">
+                    Enregistrer et fermer
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- MAIN APP SCRIPT -->
+    <script>
+        // CONFIGURATION METEO PAR DEFAULT
+        let config = {
+            mode: 'api', // 'api' ou 'sim'
+            proAlerts: false,
+            api: {
+                city: 'Paris',
+                key: '0c16dd66a17aa3ee4fee1c61315b7ce8'
+            },
+            sim: {
+                temp: 15.0,
+                temp850: 2.0,
+                humidity: 65,
+                wind: 20,
+                gust: 35,
+                rain: 0.0,
+                snow: 0.0,
+                clouds: 45,
+                visibility: 10.0,
+                cape: 0,
+                li: 0,
+                rain_24h: 0,
+                rain_48h: 0,
+                snow_24h: 0,
+                snow_48h: 0
+            }
+        };
+
+        // GLOBAL DATA
+        let currentData = {
+            temp: 15, temp850: 2, humidity: 65, wind: 20, gust: 35, rain: 0, snow: 0, clouds: 45, visibility: 10, cape: 0, li: 0
+        };
+        let trendChart = null;
+        let leafletMap = null;
+        let mapMarkersGroup = null;
+        let weatherOverlayLayer = null;
+        let vigilancePolygonGroup = null;
+
+        // Leaflet dynamic map setup coordinates
+        let currentCoords = [48.8566, 2.3522]; // Paris default
+
+        // ONPAGE LOAD INITIALIZATION
+        window.onload = function() {
+            setMode('api');
+            initLeafletMap();
+            updateObsOptions();
+            initChart();
+            
+            // Add some mock observations
+            addMockObservation('pluie', 'Modéré', 'Lyon', 12, 45.764, 4.835);
+            addMockObservation('vent', 'Vent fort (6-7 bft)', 'Brest', 42, 48.39, -4.48);
+            addMockObservation('speciaux', 'Grêle [cm]', 'Bordeaux', 2.5, 44.837, -0.579);
+
+            // Fetch default weather
+            fetchWeatherData();
+            
+            // Set dynamic datetime
+            setInterval(() => {
+                const now = new Date();
+                document.getElementById('current-datetime').innerText = now.toLocaleString('fr-FR', { weekday: 'long', hour: '2-digit', minute: '2-digit' });
+            }, 1000);
+        };
+
+        // TOOGLE MODAL UTILITY
+        function toggleModal(id) {
+            const modal = document.getElementById(id);
+            modal.classList.toggle('hidden');
+        }
+
+        // SYNC USER AVATARS
+        function changeAvatar(style) {
+            let seed = "tabo";
+            let type = "bottts";
+            if(style === "shadow") { type = "adventurer"; seed = "testeur"; }
+            if(style === "sunny") { type = "pixel-art"; seed = "mimi"; }
+            if(style === "storm") { type = "lorelei"; seed = "storm"; }
+            
+            const url = `https://api.dicebear.com/7.x/${type}/svg?seed=${seed}`;
+            document.getElementById('header-avatar').src = url;
+            document.getElementById('modal-avatar').src = url;
+        }
+
+        // SWAP METEO MODE (API vs Simulator)
+        function setMode(mode) {
+            config.mode = mode;
+            const btnApi = document.getElementById('btn-api-mode');
+            const btnSim = document.getElementById('btn-sim-mode');
+            const cardApi = document.getElementById('api-control-card');
+            const cardSim = document.getElementById('sim-control-card');
+
+            if(mode === 'api') {
+                btnApi.className = "px-3 py-1.5 rounded-md text-xs font-semibold transition-all bg-sky-500 text-white";
+                btnSim.className = "px-3 py-1.5 rounded-md text-xs font-semibold transition-all text-slate-400 hover:text-white";
+                cardApi.classList.remove('hidden');
+                cardSim.classList.add('hidden');
+                fetchWeatherData();
+            } else {
+                btnSim.className = "px-3 py-1.5 rounded-md text-xs font-semibold transition-all bg-amber-500 text-white";
+                btnApi.className = "px-3 py-1.5 rounded-md text-xs font-semibold transition-all text-slate-400 hover:text-white";
+                cardSim.classList.remove('hidden');
+                cardApi.classList.add('hidden');
+                processEngine(config.sim);
+            }
+        }
+
+        // GET LIVE OPENWEATHER DATA
+        function fetchWeatherData() {
+            const city = document.getElementById('search-city').value.trim();
+            const key = document.getElementById('api-key').value.trim();
+            const syncIcon = document.getElementById('api-sync-icon');
+            const errorMsg = document.getElementById('api-error-msg');
+            
+            if(!city || !key) {
+                errorMsg.innerText = "La ville et la clé API sont requises.";
+                errorMsg.classList.remove('hidden');
+                return;
+            }
+
+            syncIcon.classList.add('fa-spin');
+            errorMsg.classList.add('hidden');
+
+            const url = `https://api.openweathermap.org/data/2.5/weather?q=${encodeURIComponent(city)}&units=metric&lang=fr&appid=${key}`;
+
+            fetch(url)
+                .then(res => {
+                    if(!res.ok) throw new Error("Ville non trouvée ou erreur API.");
+                    return res.json();
+                })
+                .then(data => {
+                    syncIcon.classList.remove('fa-spin');
+                    parseWeatherData(data);
+                })
+                .catch(err => {
+                    syncIcon.classList.remove('fa-spin');
+                    errorMsg.innerText = err.message;
+                    errorMsg.classList.remove('hidden');
+                });
+        }
+
+        // CONVERT API DATA TO INTERNAL STRUCTURE
+        function parseWeatherData(data) {
+            currentCoords = [data.coord.lat, data.coord.lon];
+            
+            // Build temporary structured data based on OpenWeather schema
+            const output = {
+                temp: data.main.temp,
+                temp850: data.main.temp - 6.5, // approximate environmental lapse rate
+                humidity: data.main.humidity,
+                wind: data.wind.speed * 3.6, // m/s to km/h
+                gust: data.wind.gust ? data.wind.gust * 3.6 : data.wind.speed * 3.6 * 1.3,
+                rain: data.rain ? (data.rain['1h'] || 0) : 0,
+                snow: data.snow ? (data.snow['1h'] || 0) : 0,
+                clouds: data.clouds.all,
+                visibility: data.visibility ? data.visibility / 1000 : 10, // m to km
+                cape: data.main.temp > 24 && data.main.humidity > 65 ? 1200 : 0, // Convective dynamics fallback if hot/humid
+                li: data.main.temp > 24 && data.main.humidity > 65 ? -5 : 2, 
+                name: data.name,
+                coords: `${data.coord.lat.toFixed(2)}N, ${data.coord.lon.toFixed(2)}E`,
+                rain_24h: data.rain ? (data.rain['1h'] * 8 || 0) : 0,
+                rain_48h: data.rain ? (data.rain['1h'] * 15 || 0) : 0,
+                snow_24h: data.snow ? (data.snow['1h'] * 8 || 0) : 0,
+                snow_48h: data.snow ? (data.snow['1h'] * 15 || 0) : 0
+            };
+
+            currentData = output;
+            document.getElementById('title-city-name').innerText = output.name;
+            document.getElementById('current-coords').innerText = output.coords;
+
+            // Relocate map dynamically
+            if (leafletMap) {
+                leafletMap.setView(currentCoords, 8);
+            }
+
+            processEngine(output);
+            updateChart(output);
+            updateMapLayer();
+        }
+
+        // FORCE PRO FEATURES
+        function toggleProAlerts() {
+            config.proAlerts = document.getElementById('chk-pro-alerts').checked;
+            document.getElementById('chk-pro-alerts-modal').checked = config.proAlerts;
+            const badge = document.getElementById('badge-pro');
+            if(config.proAlerts) {
+                badge.className = "text-[9px] font-bold px-2 py-0.5 rounded bg-teal-500/10 text-teal-400 border border-teal-500/20";
+                badge.innerText = "Météo Pro Active";
+            } else {
+                badge.className = "text-[9px] font-bold px-2 py-0.5 rounded bg-slate-500/10 text-slate-400 border border-slate-500/20";
+                badge.innerText = "Config standard";
+            }
+            // re-trigger calculations
+            if (config.mode === 'sim') {
+                processEngine(config.sim);
+            } else {
+                processEngine(currentData);
+            }
+        }
+
+        function syncModalCheckbox(val) {
+            document.getElementById('chk-pro-alerts').checked = val;
+            toggleProAlerts();
+        }
+
+        // RESET ALL SIMULATOR SLIDERS
+        function resetSimulator() {
+            config.sim = {
+                temp: 15.0,
+                temp850: 2.0,
+                humidity: 65,
+                wind: 20,
+                gust: 35,
+                rain: 0.0,
+                snow: 0.0,
+                clouds: 45,
+                visibility: 10.0,
+                cape: 0,
+                li: 0,
+                rain_24h: 0,
+                rain_48h: 0,
+                snow_24h: 0,
+                snow_48h: 0
+            };
+            
+            // Set input values manually
+            for (let [key, val] of Object.entries(config.sim)) {
+                const el = document.getElementById(`sim-${key}`);
+                if(el) el.value = val;
+                const disp = document.getElementById(`val-sim-${key}`);
+                if(disp) {
+                    let suffix = "";
+                    if(key==='temp'||key==='temp850') suffix="°C";
+                    else if(key==='humidity'||key==='clouds') suffix="%";
+                    else if(key==='wind'||key==='gust') suffix=" km/h";
+                    else if(key==='rain'||key==='rain_24h'||key==='rain_48h') suffix=" mm/h";
+                    else if(key==='snow'||key==='snow_24h'||key==='snow_48h') suffix=" cm/h";
+                    else if(key==='visibility') suffix=" km";
+                    disp.innerText = val + suffix;
+                }
+            }
+            processEngine(config.sim);
+        }
+
+        // TRIGGER ON SIMULATOR SLIDER MOVE
+        function updateSimValue(param, val) {
+            config.sim[param] = parseFloat(val);
+            
+            let suffix = "";
+            if (param === 'temp' || param === 'temp850') suffix = "°C";
+            else if (param === 'humidity' || param === 'clouds') suffix = "%";
+            else if (param === 'wind' || param === 'gust') suffix = " km/h";
+            else if (param === 'rain') suffix = " mm/h";
+            else if (param === 'snow') suffix = " cm/h";
+            else if (param === 'visibility') suffix = " km";
+
+            document.getElementById(`val-sim-${param}`).innerText = val + suffix;
+            document.getElementById('title-city-name').innerText = "Simulateur Actif";
+            document.getElementById('current-coords').innerText = "TEST, LAB";
+            
+            processEngine(config.sim);
+            updateChart(config.sim);
+            updateMapLayer();
+        }
+
+        // ================= METEO RULES ENGINE (TABO Spec Processing with Strict Priority) =================
+        function processEngine(weather) {
+            const T = weather.temp;
+            const T850 = weather.temp850;
+            const H = weather.humidity;
+            const W = weather.wind;
+            const G = weather.gust;
+            const R = weather.rain;
+            const S = weather.snow;
+            const C = weather.clouds;
+            const V = weather.visibility; // in km
+            const CAPE = weather.cape;
+            const LI = weather.li;
+
+            // Compute auxiliary metrics for Page 5 (UV / Pollen / Pollution etc)
+            const UV = T > 30 ? 9 : (T > 20 ? 6 : (T > 10 ? 3 : 1));
+            const Pollution = H > 80 && W < 10 ? 'Très Haute' : (H > 60 && W < 20 ? 'Moyenne' : 'Basse');
+            const Pollen = T > 18 && C < 30 ? 'Très Fort' : (T > 12 && C < 60 ? 'Moyen' : 'Faible');
+            const dewPoint = T - ((100 - H)/5); // standard estimation formula
+
+            // Update UI widgets based on PAGE 5 rules (Colors and symbols with smooth stops)
+            updateColoredIndicators(T, UV, Pollution, Pollen, H, dewPoint, V, R, S, W, G, CAPE, LI);
+
+            // ================= PRIORITIZED TEMPS SENSIBLE CASCADE (Page 1-3) =================
+            let ts = "Indéterminé";
+            let tsDesc = "Aucune règle météo du PDF ne correspond.";
+            let tsIcon = "fa-circle-question text-slate-500";
+
+            // Cascade structure respects the priority order based on safety & thermodynamic intensity:
+            // Priority 1: Severe convection / thunderstorm
+            if (CAPE > 300 && LI < -2 && H > 40) {
+                ts = "Risques d'orages violents";
+                tsDesc = `Priorité 1 (Instabilité Extrême) : CAPE > 300 (${CAPE}), LI < -2 (${LI}), Humidité > 40% (${H}%)`;
+                tsIcon = "fa-cloud-bolt text-amber-500 animate-pulse";
+            }
+            // Priority 2: Freezing Rain (major hazard)
+            else if (R > 0.2 && H > 60 && T850 < -1 && T > 2) {
+                ts = "Pluie verglaçante";
+                tsDesc = `Priorité 2 (Précipitations Glacées) : Pluie > 0.2mm (${R}), Temp(850hPa) < -1°C (${T850}), Temp sol > 2°C`;
+                tsIcon = "fa-cloud-meatball text-blue-300 animate-bounce";
+            }
+            // Priority 3: Freezing Fog
+            else if (T < -1 && H > 97 && W < 5 && V < 0.1) {
+                ts = "Brouillard givrant";
+                tsDesc = `Priorité 3 (Givre Dense) : Temp < -1°C (${T}), Humidité > 97%, Visibilité < 100m`;
+                tsIcon = "fa-smog text-teal-200 animate-pulse";
+            }
+            // Priority 4: Severe snowfalls
+            else if (S > 1 && H > 60 && T < 2 && CAPE < 100) {
+                ts = "Fortes chutes de neige";
+                tsDesc = `Priorité 4 (Intempérie Neigeuse) : Neige > 1cm/h (${S}), Temp < 2°C, Humidité > 60%`;
+                tsIcon = "fa-snowflake text-indigo-200 animate-bounce";
+            }
+            // Priority 5: Moderate snowfalls
+            else if (S > 0.2 && H > 60 && T < 2 && CAPE < 100) {
+                ts = "Chutes de neige";
+                tsDesc = `Priorité 5 : Neige > 0.2cm/h (${S}), Temp < 2°C, Humidité > 60%`;
+                tsIcon = "fa-snowflake text-sky-200";
+            }
+            // Priority 6: Light snowfalls
+            else if (S > 0.05 && H > 60 && T < 2 && CAPE < 100) {
+                ts = "Chutes de neige légères";
+                tsDesc = `Priorité 6 : Neige > 0.05cm/h (${S}), Temp < 2°C`;
+                tsIcon = "fa-snowflake text-slate-300";
+            }
+            // Priority 7: Snow showers
+            else if (S > 0.05 && H > 50 && T < 2 && CAPE >= 100) {
+                ts = "Averses de neige";
+                tsDesc = `Priorité 7 (Convection Neigeuse) : Neige > 0.05cm/h (${S}), CAPE >= 100, Temp < 2°C`;
+                tsIcon = "fa-cloud-meatball text-indigo-300";
+            }
+            // Priority 8: Severe rainfalls
+            else if (R > 10 && H > 60 && T > 2 && CAPE < 100) {
+                ts = "Forte pluie";
+                tsDesc = `Priorité 8 : Pluie > 10mm/h (${R}), Humidité > 60%, Temp > 2°C`;
+                tsIcon = "fa-cloud-showers-water text-blue-600";
+            }
+            // Priority 9: Moderate rainfalls
+            else if (R > 2 && H > 60 && T > 2 && CAPE >= 100) {
+                ts = "Pluie";
+                tsDesc = `Priorité 9 : Pluie > 2mm/h (${R}), Temp > 2°C, CAPE élevée`;
+                tsIcon = "fa-cloud-showers-heavy text-blue-400";
+            }
+            // Priority 10: Light rainfalls
+            else if (R > 0.2 && H > 60 && T > 2 && CAPE < 100) {
+                ts = "Pluie faible";
+                tsDesc = `Priorité 10 : Pluie > 0.2mm/h (${R}), Temp > 2°C`;
+                tsIcon = "fa-cloud-rain text-blue-300";
+            }
+            // Priority 11: Rain showers
+            else if (R > 0.2 && H > 50 && T > 2 && CAPE >= 100) {
+                ts = "Averses";
+                tsDesc = `Priorité 11 : Pluie > 0.2mm/h (${R}), CAPE > 100 (${CAPE}), Temp > 2°C`;
+                tsIcon = "fa-cloud-sun-rain text-sky-400";
+            }
+            // Priority 12: Extremely windy
+            else if (G > 70 && W > 60) {
+                ts = "Très venteux";
+                tsDesc = `Priorité 12 : Rafales > 70km/h (${G}), Vent moyen > 60km/h (${W})`;
+                tsIcon = "fa-wind text-rose-400 animate-pulse";
+            }
+            // Priority 13: Windy
+            else if (G > 60 && W > 40) {
+                ts = "Venteux";
+                tsDesc = `Priorité 13 : Rafales > 60km/h (${G}), Vent moyen > 40km/h (${W})`;
+                tsIcon = "fa-wind text-teal-400";
+            }
+            // Priority 14: Fog
+            else if (H > 97 && W < 5 && V < 0.8) {
+                ts = "Brouillard";
+                tsDesc = `Priorité 14 : Humidité > 97% (${H}%), Vent < 5km/h (${W}), Visibilité < 800m`;
+                tsIcon = "fa-smog text-slate-400";
+            }
+            // Priority 15: Mist
+            else if (H > 92 && W < 5 && V < 2) {
+                ts = "Brume";
+                tsDesc = `Priorité 15 : Humidité > 92% (${H}%), Vent < 5km/h (${W}), Visibilité < 2km`;
+                tsIcon = "fa-smog text-slate-500";
+            }
+            // Priority 16: Overcast skies
+            else if (C > 90) {
+                ts = "Couvert";
+                tsDesc = `Priorité 16 : Nébulosité > 90% (${C}%)`;
+                tsIcon = "fa-cloud text-slate-300";
+            }
+            // Priority 17: Cloudy skies
+            else if (C > 60) {
+                ts = "Nuageux";
+                tsDesc = `Priorité 17 : Nébulosité > 60% (${C}%)`;
+                tsIcon = "fa-cloud-sun text-slate-400";
+            }
+            // Priority 18: Partly cloudy skies
+            else if (C > 20) {
+                ts = "Partiellement nuageux";
+                tsDesc = `Priorité 18 : Nébulosité > 20% (${C}%)`;
+                tsIcon = "fa-cloud-sun text-sky-400";
+            }
+            // Priority 19: Clear skies
+            else {
+                ts = "Ciel clair";
+                tsDesc = `Priorité 19 : Nébulosité < 20% (${C}%)`;
+                tsIcon = "fa-sun text-yellow-400";
+            }
+
+            // Update DOM
+            document.getElementById('temps-sensible-title').innerText = ts;
+            document.getElementById('temps-sensible-desc').innerText = tsDesc;
+            document.getElementById('temps-sensible-icon').innerHTML = `<i class="fa-solid ${tsIcon}"></i>`;
+
+            // ================= ALERT CHECKER (Page 4) =================
+            checkForAlerts(weather);
+        }
+
+        // SMOOTH STOP LERPING COLOR HELPERS
+        function lerp(start, end, amt) { return (1 - amt) * start + amt * end; }
+        function interpolateColor(color1, color2, factor) {
+            const r = Math.round(lerp(color1[0], color2[0], factor));
+            const g = Math.round(lerp(color1[1], color2[1], factor));
+            const b = Math.round(lerp(color1[2], color2[2], factor));
+            return `rgb(${r}, ${g}, ${b})`;
+        }
+
+        function getTemperatureColor(T) {
+            if (T <= -15) return 'rgb(30, 64, 175)';
+            if (T >= 38) return 'rgb(244, 63, 94)';
+            let c1, c2, factor;
+            if (T < -5) { c1 = [30, 64, 175]; c2 = [96, 165, 250]; factor = (T - (-15)) / 10; }
+            else if (T < 12) { c1 = [96, 165, 250]; c2 = [52, 211, 153]; factor = (T - (-5)) / 17; }
+            else if (T < 24) { c1 = [52, 211, 153]; c2 = [251, 146, 60]; factor = (T - 12) / 12; }
+            else { c1 = [251, 146, 60]; c2 = [244, 63, 94]; factor = (T - 24) / 14; }
+            return interpolateColor(c1, c2, factor);
+        }
+
+        function getUVColor(UV) {
+            if (UV <= 0) return 'rgb(148, 163, 184)';
+            if (UV >= 11) return 'rgb(139, 92, 246)';
+            let c1, c2, factor;
+            if (UV < 3) { c1 = [148, 163, 184]; c2 = [163, 230, 53]; factor = UV / 3; }
+            else if (UV < 6) { c1 = [163, 230, 53]; c2 = [245, 158, 11]; factor = (UV - 3) / 3; }
+            else if (UV < 8) { c1 = [245, 158, 11]; c2 = [249, 115, 22]; factor = (UV - 6) / 2; }
+            else { c1 = [249, 115, 22]; c2 = [139, 92, 246]; factor = (UV - 8) / 3; }
+            return interpolateColor(c1, c2, factor);
+        }
+
+        function getPollutionColor(Pollution) {
+            if (Pollution === 'Basse') return 'rgb(148, 163, 184)';
+            if (Pollution === 'Moyenne') return 'rgb(234, 179, 8)';
+            return 'rgb(168, 85, 247)';
+        }
+
+        function getPollenColor(Pollen) {
+            if (Pollen === 'Faible') return 'rgb(148, 163, 184)';
+            if (Pollen === 'Moyen') return 'rgb(234, 179, 8)';
+            return 'rgb(244, 63, 94)';
+        }
+
+        function getHumidityColor(H) {
+            if (H <= 0) return 'rgb(180, 83, 9)';
+            if (H >= 100) return 'rgb(29, 78, 216)';
+            let c1, c2, factor;
+            if (H < 50) { c1 = [180, 83, 9]; c2 = [45, 212, 191]; factor = H / 50; }
+            else { c1 = [45, 212, 191]; c2 = [29, 78, 216]; factor = (H - 50) / 50; }
+            return interpolateColor(c1, c2, factor);
+        }
+
+        function getVisibilityColor(V) {
+            if (V <= 0) return 'rgb(15, 23, 42)';
+            if (V >= 12) return 'rgb(226, 232, 240)';
+            let c1, c2, factor;
+            if (V < 2) { c1 = [15, 23, 42]; c2 = [100, 116, 139]; factor = V / 2; }
+            else { c1 = [100, 116, 139]; c2 = [226, 232, 240]; factor = (V - 2) / 10; }
+            return interpolateColor(c1, c2, factor);
+        }
+
+        function getRainColor(R) {
+            if (R <= 0) return 'rgb(148, 163, 184)';
+            if (R >= 40) return 'rgb(109, 40, 217)';
+            let c1, c2, factor;
+            if (R < 2) { c1 = [148, 163, 184]; c2 = [56, 189, 248]; factor = R / 2; }
+            else if (R < 12) { c1 = [56, 189, 248]; c2 = [29, 78, 216]; factor = (R - 2) / 10; }
+            else { c1 = [29, 78, 216]; c2 = [109, 40, 217]; factor = (R - 12) / 28; }
+            return interpolateColor(c1, c2, factor);
+        }
+
+        function getSnowColor(S) {
+            if (S <= 0) return 'rgb(148, 163, 184)';
+            if (S >= 12) return 'rgb(88, 28, 135)';
+            let c1, c2, factor;
+            if (S < 0.2) { c1 = [148, 163, 184]; c2 = [191, 219, 254]; factor = S / 0.2; }
+            else if (S < 1.0) { c1 = [191, 219, 254]; c2 = [129, 140, 248]; factor = (S - 0.2) / 0.8; }
+            else if (S < 5.0) { c1 = [129, 140, 248]; c2 = [147, 51, 234]; factor = (S - 1.0) / 4.0; }
+            else { c1 = [147, 51, 234]; c2 = [88, 28, 135]; factor = (S - 5.0) / 7.0; }
+            return interpolateColor(c1, c2, factor);
+        }
+
+        function getWindColor(W, G) {
+            const maxW = Math.max(W, G);
+            if (maxW <= 0) return 'rgb(203, 213, 225)';
+            if (maxW >= 140) return 'rgb(6, 40, 30)';
+            let c1, c2, factor;
+            if (maxW < 40) { c1 = [203, 213, 225]; c2 = [110, 190, 150]; factor = maxW / 40; }
+            else if (maxW < 85) { c1 = [110, 190, 150]; c2 = [34, 110, 80]; factor = (maxW - 40) / 45; }
+            else { c1 = [34, 110, 80]; c2 = [6, 40, 30]; factor = (maxW - 85) / 55; }
+            return interpolateColor(c1, c2, factor);
+        }
+
+        function getConvectionColor(CAPE, LI) {
+            const capeFactor = Math.min(CAPE / 3500, 1);
+            const liFactor = LI < 0 ? Math.min(-LI / 10, 1) : 0;
+            const combinedFactor = Math.min((capeFactor + liFactor) / 2, 1);
+            return interpolateColor([148, 163, 184], [234, 88, 12], combinedFactor);
+        }
+
+        // DYNAMIC COLOR STYLING ACCORDING TO PAGE 5 RULES
+        function updateColoredIndicators(T, UV, Pollution, Pollen, H, dewPoint, V, R, S, W, G, CAPE, LI) {
+            document.getElementById('icon-temp').style.color = getTemperatureColor(T);
+            document.getElementById('disp-temp').innerText = `${T.toFixed(1)}°C`;
+
+            document.getElementById('icon-uv').style.color = getUVColor(UV);
+            document.getElementById('disp-uv').innerText = UV;
+
+            document.getElementById('icon-pollution').style.color = getPollutionColor(Pollution);
+            document.getElementById('disp-pollution').innerText = Pollution;
+
+            document.getElementById('icon-pollen').style.color = getPollenColor(Pollen);
+            document.getElementById('disp-pollen').innerText = Pollen;
+
+            document.getElementById('icon-humidity').style.color = getHumidityColor(H);
+            document.getElementById('disp-humidity').innerText = `${H}%`;
+
+            document.getElementById('icon-dewpoint').style.color = getTemperatureColor(dewPoint);
+            document.getElementById('disp-dewpoint').innerText = `${dewPoint.toFixed(1)}°C`;
+
+            document.getElementById('icon-visibility').style.color = getVisibilityColor(V);
+            document.getElementById('disp-visibility').innerText = `${V.toFixed(1)} km`;
+
+            document.getElementById('icon-rain').style.color = getRainColor(R);
+            document.getElementById('disp-rain').innerText = `${R} mm/h`;
+
+            document.getElementById('icon-snow').style.color = getSnowColor(S);
+            document.getElementById('disp-snow').innerText = `${S} cm/h`;
+
+            const arrow = document.getElementById('wind-arrow');
+            arrow.style.transform = `rotate(${W * 2}deg)`;
+            document.getElementById('icon-wind').style.color = getWindColor(W, G);
+            document.getElementById('disp-wind').innerText = `${Math.round(W)} km/h`;
+            document.getElementById('disp-gust').innerText = `${Math.round(G)} km/h`;
+
+            document.getElementById('icon-cape').style.color = getConvectionColor(CAPE, LI);
+            document.getElementById('disp-convection').innerText = `${CAPE} / ${LI}`;
+        }
+
+        // ================= ALERTS ENGINE DETECTOR (PAGE 3-4) =================
+        function checkForAlerts(weather) {
+            const container = document.getElementById('alerts-container');
+            container.innerHTML = ""; // Clear old alerts
+
+            let alertsFound = [];
+
+            const T = weather.temp;
+            const H = weather.humidity;
+            const W = weather.wind;
+            const G = weather.gust;
+            const R = weather.rain;
+            const S = weather.snow;
+            const CAPE = weather.cape;
+            const LI = weather.li;
+            const V = weather.visibility;
+
+            const rain_1h = R;
+            const rain_24h = parseFloat(document.getElementById('sim-rain-24h')?.value) || (R * 8);
+            const rain_48h = parseFloat(document.getElementById('sim-rain-48h')?.value) || (R * 15);
+
+            // Pluie 1h thresholds
+            if (rain_1h >= 40) alertsFound.push({ title: 'Pluie Intense (1h)', desc: `Débit critique: ${rain_1h} mm/h`, lvl: 'Très Fort', color: 'bg-red-950 border-red-500 text-red-100' });
+            else if (rain_1h >= 30) alertsFound.push({ title: 'Pluie Violente (1h)', desc: `Débit: ${rain_1h} mm/h`, lvl: 'Fort', color: 'bg-red-900/60 border-red-600 text-red-200' });
+            else if (rain_1h >= 20) alertsFound.push({ title: 'Pluie Marquée (1h)', desc: `Débit: ${rain_1h} mm/h`, lvl: 'Marqué', color: 'bg-orange-950 border-orange-500 text-orange-200' });
+            else if (rain_1h >= 10) alertsFound.push({ title: 'Pluie Modérée (1h)', desc: `Débit: ${rain_1h} mm/h`, lvl: 'Modéré', color: 'bg-yellow-950 border-yellow-500 text-yellow-200' });
+
+            // Pluie 24h thresholds
+            if (rain_24h >= 80) alertsFound.push({ title: 'Cumul Pluie (24h)', desc: `Seuil extrême: ${rain_24h} mm`, lvl: 'Très Fort', color: 'bg-red-950 border-red-500 text-red-100' });
+            else if (rain_24h >= 60) alertsFound.push({ title: 'Cumul Pluie (24h)', desc: `Seuil rouge: ${rain_24h} mm`, lvl: 'Fort', color: 'bg-red-900/60 border-red-600 text-red-200' });
+            else if (rain_24h >= 40) alertsFound.push({ title: 'Cumul Pluie (24h)', desc: `Seuil orange: ${rain_24h} mm`, lvl: 'Marqué', color: 'bg-orange-950 border-orange-500 text-orange-200' });
+            else if (rain_24h >= 30) alertsFound.push({ title: 'Cumul Pluie (24h)', desc: `Seuil jaune: ${rain_24h} mm`, lvl: 'Modéré', color: 'bg-yellow-950 border-yellow-500 text-yellow-200' });
+
+            // Pluie 48h thresholds
+            if (rain_48h >= 100) alertsFound.push({ title: 'Cumul Pluie (48h)', desc: `Danger inondation: ${rain_48h} mm`, lvl: 'Très Fort', color: 'bg-red-950 border-red-500 text-red-100' });
+            else if (rain_48h >= 80) alertsFound.push({ title: 'Cumul Pluie (48h)', desc: `Crue critique: ${rain_48h} mm`, lvl: 'Fort', color: 'bg-red-900/60 border-red-600 text-red-200' });
+            else if (rain_48h >= 55) alertsFound.push({ title: 'Cumul Pluie (48h)', desc: `Cumul élevé: ${rain_48h} mm`, lvl: 'Marqué', color: 'bg-orange-950 border-orange-500 text-orange-200' });
+            else if (rain_48h >= 45) alertsFound.push({ title: 'Cumul Pluie (48h)', desc: `Cumul modéré: ${rain_48h} mm`, lvl: 'Modéré', color: 'bg-yellow-950 border-yellow-500 text-yellow-200' });
+
+            // 2. NEIGE ALERTS (24h / 48h)
+            const snow_1h = S;
+            const snow_24h = parseFloat(document.getElementById('sim-snow-24h')?.value) || (S * 8);
+            const snow_48h = parseFloat(document.getElementById('sim-snow-48h')?.value) || (S * 15);
+
+            // Neige 24h thresholds
+            if (snow_24h >= 35) alertsFound.push({ title: 'Fortes chutes de Neige (24h)', desc: `Hauteur: ${snow_24h} cm`, lvl: 'Très Fort', color: 'bg-red-950 border-red-500 text-red-100' });
+            else if (snow_24h >= 20) alertsFound.push({ title: 'Chutes de Neige (24h)', desc: `Hauteur: ${snow_24h} cm`, lvl: 'Fort', color: 'bg-red-900/60 border-red-600 text-red-200' });
+            else if (snow_24h >= 10) alertsFound.push({ title: 'Chutes de Neige (24h)', desc: `Hauteur: ${snow_24h} cm`, lvl: 'Marqué', color: 'bg-orange-950 border-orange-500 text-orange-200' });
+            else if (snow_24h >= 5) alertsFound.push({ title: 'Chutes de Neige (24h)', desc: `Hauteur: ${snow_24h} cm`, lvl: 'Modéré', color: 'bg-yellow-950 border-yellow-500 text-yellow-200' });
+
+            // Neige 48h thresholds
+            if (snow_48h >= 50) alertsFound.push({ title: 'Cumul Neige (48h)', desc: `Hauteur: ${snow_48h} cm`, lvl: 'Très Fort', color: 'bg-red-950 border-red-500 text-red-100' });
+            else if (snow_48h >= 30) alertsFound.push({ title: 'Cumul Neige (48h)', desc: `Hauteur: ${snow_48h} cm`, lvl: 'Fort', color: 'bg-red-900/60 border-red-600 text-red-200' });
+            else if (snow_48h >= 15) alertsFound.push({ title: 'Cumul Neige (48h)', desc: `Hauteur: ${snow_48h} cm`, lvl: 'Marqué', color: 'bg-orange-950 border-orange-500 text-orange-200' });
+            else if (snow_48h >= 8) alertsFound.push({ title: 'Cumul Neige (48h)', desc: `Hauteur: ${snow_48h} cm`, lvl: 'Modéré', color: 'bg-yellow-950 border-yellow-500 text-yellow-200' });
+
+            // 3. VENT ALERTS (Rafales / Vent moyen)
+            if (G >= 130) alertsFound.push({ title: 'Tempête Violente (Rafales)', desc: `Rafales extrêmes: ${Math.round(G)} km/h`, lvl: 'Très Fort', color: 'bg-red-950 border-red-500 text-red-100' });
+            else if (G >= 100) alertsFound.push({ title: 'Tempête (Rafales)', desc: `Rafales destructrices: ${Math.round(G)} km/h`, lvl: 'Fort', color: 'bg-red-900/60 border-red-600 text-red-200' });
+            else if (G >= 80) alertsFound.push({ title: 'Fortes Rafales', desc: `Vitesse: ${Math.round(G)} km/h`, lvl: 'Marqué', color: 'bg-orange-950 border-orange-500 text-orange-200' });
+            else if (G >= 60) alertsFound.push({ title: 'Coups de vent', desc: `Vitesse: ${Math.round(G)} km/h`, lvl: 'Modéré', color: 'bg-yellow-950 border-yellow-500 text-yellow-200' });
+
+            if (W >= 100) alertsFound.push({ title: 'Vent Moyen Tempétueux', desc: `Moyenne soutenue: ${Math.round(W)} km/h`, lvl: 'Très Fort', color: 'bg-red-950 border-red-500 text-red-100' });
+            else if (W >= 80) alertsFound.push({ title: 'Vent Moyen Violent', desc: `Moyenne soutenue: ${Math.round(W)} km/h`, lvl: 'Fort', color: 'bg-red-900/60 border-red-600 text-red-200' });
+            else if (W >= 60) alertsFound.push({ title: 'Vent Moyen Élevé', desc: `Moyenne soutenue: ${Math.round(W)} km/h`, lvl: 'Marqué', color: 'bg-orange-950 border-orange-500 text-orange-200' });
+            else if (W >= 40) alertsFound.push({ title: 'Vent Moyen Sensible', desc: `Moyenne soutenue: ${Math.round(W)} km/h`, lvl: 'Modéré', color: 'bg-yellow-950 border-yellow-500 text-yellow-200' });
+
+            // 4. ORAGE ALERTS
+            if (CAPE > 4000 || LI < -10) alertsFound.push({ title: 'Orages Cataclysmiques', desc: `CAPE > 4000 (${CAPE}), LI < -10`, lvl: 'Très Fort', color: 'bg-red-950 border-red-500 text-red-100 animate-pulse' });
+            else if (CAPE >= 2000 || LI <= -8) alertsFound.push({ title: 'Orages Violents et Supercellules', desc: `CAPE: ${CAPE}, LI: ${LI}`, lvl: 'Fort', color: 'bg-red-900/60 border-red-600 text-red-200' });
+            else if (CAPE >= 1200 || LI <= -6) alertsFound.push({ title: 'Orages Marqués', desc: `Risque de grêle et forte activité`, lvl: 'Marqué', color: 'bg-orange-950 border-orange-500 text-orange-200' });
+            else if (CAPE >= 500 || LI <= -3) alertsFound.push({ title: 'Risque Orageux Détecté', desc: `Instabilité modérée (CAPE: ${CAPE})`, lvl: 'Modéré', color: 'bg-yellow-950 border-yellow-500 text-yellow-200' });
+
+            // 5. CANICULE ALERTS
+            if (T >= 40) alertsFound.push({ title: 'Canicule Extrême', desc: `Température au sol critique: ${T}°C`, lvl: 'Très Fort', color: 'bg-red-950 border-red-500 text-red-100' });
+            else if (T >= 38) alertsFound.push({ title: 'Forte Canicule', desc: `Température: ${T}°C (durée attendue > 3j)`, lvl: 'Fort', color: 'bg-red-900/60 border-red-600 text-red-200' });
+            else if (T >= 36) alertsFound.push({ title: 'Canicule Modérée', desc: `Température: ${T}°C`, lvl: 'Marqué', color: 'bg-orange-950 border-orange-500 text-orange-200' });
+            else if (T >= 34) alertsFound.push({ title: 'Forte Chaleur', desc: `Seuil d'alerte canicule: ${T}°C`, lvl: 'Modéré', color: 'bg-yellow-950 border-yellow-500 text-yellow-200' });
+
+            // 6. GRAND FROID ALERTS
+            if (T <= -12) alertsFound.push({ title: 'Grand Froid Extrême', desc: `Température: ${T}°C`, lvl: 'Très Fort', color: 'bg-red-950 border-red-500 text-red-100' });
+            else if (T <= -8) alertsFound.push({ title: 'Vague de Froid Intense', desc: `Température: ${T}°C`, lvl: 'Fort', color: 'bg-red-900/60 border-red-600 text-red-200' });
+            else if (T <= -6) alertsFound.push({ title: 'Grand Froid Marqué', desc: `Température: ${T}°C`, lvl: 'Marqué', color: 'bg-orange-950 border-orange-500 text-orange-200' });
+            else if (T <= -4) alertsFound.push({ title: 'Froid Modéré', desc: `Température: ${T}°C`, lvl: 'Modéré', color: 'bg-yellow-950 border-yellow-500 text-yellow-200' });
+
+            // 7. VERGLAS ALERTS
+            if (T <= 0 && R > 2) alertsFound.push({ title: 'Verglas Généralisé', desc: `Pluie soutenue sur sol gelé (>2mm)`, lvl: 'Très Fort', color: 'bg-red-950 border-red-500 text-red-100' });
+            else if (T <= 0 && R > 0.1) alertsFound.push({ title: 'Pluie Verglaçante', desc: `Dépôt de glace direct (<2mm)`, lvl: 'Fort', color: 'bg-red-900/60 border-red-600 text-red-200' });
+            else if (T <= 0 && snow_1h > 0) alertsFound.push({ title: 'Neige au Sol / Glace', desc: `Chaussées glissantes`, lvl: 'Marqué', color: 'bg-orange-950 border-orange-500 text-orange-200' });
+            else if (T <= 2 && H > 90) alertsFound.push({ title: 'Risque de Givre', desc: `Humidité saturée à basse température`, lvl: 'Modéré', color: 'bg-yellow-950 border-yellow-500 text-yellow-200' });
+
+            // 8. SPECIAL PRO ALERTS
+            if (config.proAlerts) {
+                if (T <= -2) alertsFound.push({ title: 'Gel Fort*', desc: `Alerte agricole: ${T}°C`, lvl: 'Marqué', color: 'bg-orange-950 border-orange-500 text-orange-200' });
+                else if (T <= 0) alertsFound.push({ title: 'Gel au Sol*', desc: `Température: ${T}°C`, lvl: 'Modéré', color: 'bg-yellow-950 border-yellow-500 text-yellow-200' });
+                else if (T <= 2) alertsFound.push({ title: 'Risque de Gelée*', desc: `Température proche du sol: ${T}°C`, lvl: 'Modéré', color: 'bg-yellow-900/20 border-yellow-500/50 text-yellow-400' });
+
+                const V_m = V * 1000;
+                if (V_m <= 50) alertsFound.push({ title: 'Brouillard Extrême*', desc: `Visibilité routière: ${V_m}m`, lvl: 'Très Fort', color: 'bg-red-950 border-red-500 text-red-100' });
+                else if (V_m <= 100) alertsFound.push({ title: 'Brouillard Très Dense*', desc: `Visibilité: ${V_m}m`, lvl: 'Fort', color: 'bg-red-900/60 border-red-600 text-red-200' });
+                else if (V_m <= 250) alertsFound.push({ title: 'Brouillard Dense*', desc: `Visibilité: ${V_m}m`, lvl: 'Marqué', color: 'bg-orange-950 border-orange-500 text-orange-200' });
+                else if (V_m <= 500) alertsFound.push({ title: 'Brouillard Modéré*', desc: `Visibilité: ${V_m}m`, lvl: 'Modéré', color: 'bg-yellow-950 border-yellow-500 text-yellow-200' });
+
+                if (H < 15 && T > 30) alertsFound.push({ title: 'Sécheresse Extrême*', desc: `Risque d'incendie majeur`, lvl: 'Fort', color: 'bg-red-900/60 border-red-600 text-red-200 animate-pulse' });
+                else if (H < 25) alertsFound.push({ title: 'Sécheresse Sévère*', desc: `Humidité critique: ${H}%`, lvl: 'Marqué', color: 'bg-orange-950 border-orange-500 text-orange-200' });
+            }
+
+            // RENDER ACTIVE ALERTS
+            if (alertsFound.length > 0) {
+                const priority = { 'Très Fort': 4, 'Fort': 3, 'Marqué': 2, 'Modéré': 1 };
+                alertsFound.sort((a,b) => priority[b.lvl] - priority[a.lvl]);
+
+                alertsFound.forEach(alert => {
+                    const badgeColor = alert.lvl === 'Très Fort' ? 'bg-red-600 text-white' : 
+                                      (alert.lvl === 'Fort' ? 'bg-red-500 text-white' : 
+                                      (alert.lvl === 'Marqué' ? 'bg-orange-500 text-slate-900' : 'bg-yellow-500 text-slate-900'));
+                    
+                    const card = `
+                        <div class="border rounded-xl p-3.5 transition hover:scale-[1.01] duration-300 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 ${alert.color}">
+                            <div>
+                                <h4 class="font-bold text-sm flex items-center gap-2">
+                                    <span class="w-2 h-2 rounded-full bg-current animate-ping"></span>
+                                    ${alert.title}
+                                </h4>
+                                <p class="text-xs opacity-80 mt-0.5">${alert.desc}</p>
+                            </div>
+                            <span class="text-[10px] font-bold px-2 py-1 rounded uppercase tracking-wider ${badgeColor}">${alert.lvl}</span>
+                        </div>
+                    `;
+                    container.innerHTML += card;
+                });
+            } else {
+                container.innerHTML = `
+                    <div class="text-center py-12 text-slate-500 text-sm">
+                        <i class="fa-solid fa-circle-check text-emerald-500 text-2xl mb-2 block"></i>
+                        Aucun phénomène dangereux détecté (Vigilance Verte)
+                    </div>
+                `;
+            }
+        }
+
+        // ================= LEAFLET MAP & 15 DYNAMIC OVERLAYS (Page 4-5) =================
+        function initLeafletMap() {
+            // Setup Map
+            leafletMap = L.map('interactive-map', {
+                zoomControl: false
+            }).setView(currentCoords, 7);
+
+            // Base Tile Layer (Dark elegant theme to match slate-900 style)
+            L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+                attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
+                subdomains: 'abcd',
+                maxZoom: 20
+            }).addTo(leafletMap);
+
+            L.control.zoom({ position: 'topright' }).addTo(leafletMap);
+
+            // Layer groups
+            mapMarkersGroup = L.layerGroup().addTo(leafletMap);
+            vigilancePolygonGroup = L.layerGroup().addTo(leafletMap);
+        }
+
+        function updateMapLayer() {
+            if (!leafletMap) return;
+
+            const layerId = document.getElementById('map-layer').value;
+            const subfiltersDiv = document.getElementById('map-subfilters');
+            subfiltersDiv.innerHTML = "";
+            subfiltersDiv.classList.add('hidden');
+
+            // Clean active overlays
+            if (weatherOverlayLayer) {
+                leafletMap.removeLayer(weatherOverlayLayer);
+                weatherOverlayLayer = null;
+            }
+            vigilancePolygonGroup.clearLayers();
+
+            const apiKey = document.getElementById('api-key').value.trim();
+
+            switch (layerId) {
+                case "1": // Température
+                    subfiltersDiv.classList.remove('hidden');
+                    subfiltersDiv.innerHTML = `
+                        <div class="flex gap-2 p-1.5 bg-slate-900/80 rounded-lg text-[10px] items-center">
+                            <span class="text-slate-400">Pression :</span>
+                            <button onclick="changeAltTemp('1000')" class="px-2 py-0.5 rounded bg-sky-500 text-white font-semibold">1000 hPa (Sol)</button>
+                            <button onclick="changeAltTemp('850')" class="px-2 py-0.5 rounded bg-slate-800 text-slate-300">850 hPa (Altitude)</button>
+                        </div>
+                    `;
+                    addOpenWeatherLayer('temp_new', apiKey);
+                    break;
+                case "2": // Vent (rafales ou moyen)
+                    subfiltersDiv.classList.remove('hidden');
+                    subfiltersDiv.innerHTML = `
+                        <div class="flex gap-2 p-1.5 bg-slate-900/80 rounded-lg text-[10px] items-center">
+                            <span class="text-slate-400">Type de Vent :</span>
+                            <button onclick="alert('Vent moyen activé')" class="px-2 py-0.5 rounded bg-sky-500 text-white font-semibold">Vent Moyen</button>
+                            <button onclick="alert('Vent en rafale activé')" class="px-2 py-0.5 rounded bg-slate-800 text-slate-300">Rafales</button>
+                        </div>
+                    `;
+                    addOpenWeatherLayer('wind_new', apiKey);
+                    break;
+                case "3": // Satellite
+                    addOpenWeatherLayer('clouds_new', apiKey);
+                    break;
+                case "4": // Radar + éclairs
+                    addOpenWeatherLayer('precipitation_new', apiKey);
+                    drawLightningPoints();
+                    break;
+                case "5": // Pluie/neige
+                    addOpenWeatherLayer('precipitation_new', apiKey);
+                    break;
+                case "6": // Pression
+                    addOpenWeatherLayer('pressure_new', apiKey);
+                    break;
+                case "7": // Pollution (PM2.5, PM10, NO2)
+                    subfiltersDiv.classList.remove('hidden');
+                    subfiltersDiv.innerHTML = `
+                        <div class="flex flex-wrap gap-1.5 p-1.5 bg-slate-900/80 rounded-lg text-[10px] items-center">
+                            <span class="text-slate-400">Polluant :</span>
+                            <button class="px-2 py-0.5 rounded bg-teal-500 text-white">PM2.5</button>
+                            <button class="px-2 py-0.5 rounded bg-slate-800 text-slate-300">PM10</button>
+                            <button class="px-2 py-0.5 rounded bg-slate-800 text-slate-300">NO2</button>
+                        </div>
+                    `;
+                    drawSimulatedPollutionHeatmap();
+                    break;
+                case "8": // Pollen
+                    subfiltersDiv.classList.remove('hidden');
+                    subfiltersDiv.innerHTML = `
+                        <div class="flex flex-wrap gap-1.5 p-1.5 bg-slate-900/80 rounded-lg text-[10px] items-center">
+                            <span class="text-slate-400">Pollen :</span>
+                            <button class="px-2 py-0.5 rounded bg-teal-500 text-white">Graminées</button>
+                            <button class="px-2 py-0.5 rounded bg-slate-800 text-slate-300">Bouleau</button>
+                            <button class="px-2 py-0.5 rounded bg-slate-800 text-slate-300">Ambroisie</button>
+                        </div>
+                    `;
+                    drawSimulatedPollenCircles();
+                    break;
+                case "9": // Humidité
+                case "10": // Probabilité de précipitations
+                case "11": // Température ressentie
+                case "12": // Point de rosée
+                case "13": // Visibilité
+                    drawSimulationColoredContours(layerId);
+                    break;
+                case "14": // Vigilances
+                    drawSimulatedVigilanceZones();
+                    break;
+                case "15": // Observations Participatives
+                    // No overlays, markers from the participatory section are displayed
+                    break;
+            }
+        }
+
+        // ATTACH LIVE TILE OVERLAY IF API KEY EXISTS
+        function addOpenWeatherLayer(layerName, key) {
+            if (!key || key === "0c16dd66a17aa3ee4fee1c61315b7ce8") {
+                // If standard key (which might have limits on map overlays), draw mock fallback contour
+                drawSimulationColoredContours(layerName);
+                return;
+            }
+            weatherOverlayLayer = L.tileLayer(`https://tile.openweathermap.org/map/${layerName}/{z}/{x}/{y}.png?appid=${key}`, {
+                maxZoom: 18,
+                opacity: 0.65,
+                attribution: "Map data &copy; OpenWeather"
+            });
+            weatherOverlayLayer.addTo(leafletMap);
+        }
+
+        // SIMULATED VISUALIZATIONS FOR MAPS THAT HAVE NO RAW FREE TILE OVERLAYS
+        function drawSimulationColoredContours(layerName) {
+            // Draw a smooth transparent circle over France center
+            const center = currentCoords;
+            const colors = {
+                "9": "#06b6d4", // Humidité
+                "10": "#3b82f6", // Prob précip
+                "11": "#f97316", // Ressenti
+                "12": "#14b8a6", // Dewpoint
+                "13": "#64748b", // Visibilité
+                "temp_new": "#f43f5e",
+                "precipitation_new": "#2563eb"
+            };
+            const col = colors[layerName] || "#38bdf8";
+            
+            const circle = L.circle(center, {
+                color: col,
+                fillColor: col,
+                fillOpacity: 0.35,
+                radius: 120000 // 120km
+            }).addTo(vigilancePolygonGroup);
+            circle.bindPopup(`Simulation de la couche : ${layerName}`);
+        }
+
+        function drawLightningPoints() {
+            // Plot animated flash strikes around city
+            const center = currentCoords;
+            for (let i = 0; i < 5; i++) {
+                const latOffset = (Math.random() - 0.5) * 0.4;
+                const lonOffset = (Math.random() - 0.5) * 0.4;
+                const strike = L.circleMarker([center[0] + latOffset, center[1] + lonOffset], {
+                    radius: 8,
+                    color: '#fbbf24',
+                    fillColor: '#ffffff',
+                    fillOpacity: 0.9,
+                    weight: 3
+                }).addTo(vigilancePolygonGroup);
+                strike.bindPopup("⚡ Impact de foudre détecté < 5 min");
+            }
+        }
+
+        function drawSimulatedPollutionHeatmap() {
+            const center = currentCoords;
+            const pollutionZone = L.circle(center, {
+                color: '#8b5cf6',
+                fillColor: '#a78bfa',
+                fillOpacity: 0.4,
+                radius: 80000
+            }).addTo(vigilancePolygonGroup);
+            pollutionZone.bindPopup("Pollution aux PM2.5 : Niveau Modéré");
+        }
+
+        function drawSimulatedPollenCircles() {
+            const center = currentCoords;
+            const pollenZone = L.circle(center, {
+                color: '#10b981',
+                fillColor: '#34d399',
+                fillOpacity: 0.35,
+                radius: 150000
+            }).addTo(vigilancePolygonGroup);
+            pollenZone.bindPopup("Concentration Pollen Bouleau : Très Élevée");
+        }
+
+        function drawSimulatedVigilanceZones() {
+            // Draw French department polygon mocks for yellow/orange/red alert
+            const center = currentCoords;
+            // Simulated polygons around center coords
+            const p1 = [
+                [center[0] + 0.5, center[1] - 0.5],
+                [center[0] + 0.8, center[1] + 0.1],
+                [center[0] + 0.3, center[1] + 0.4],
+                [center[0] + 0.1, center[1] - 0.2]
+            ];
+            const p2 = [
+                [center[0] - 0.2, center[1] - 0.6],
+                [center[0] - 0.1, center[1] + 0.2],
+                [center[0] - 0.5, center[1] + 0.1],
+                [center[0] - 0.6, center[1] - 0.4]
+            ];
+
+            const poly1 = L.polygon(p1, { color: '#f59e0b', fillColor: '#fbbf24', fillOpacity: 0.5 }).addTo(vigilancePolygonGroup);
+            poly1.bindPopup("⚠️ Vigilance Orange Orages Actives");
+
+            const poly2 = L.polygon(p2, { color: '#ef4444', fillColor: '#f87171', fillOpacity: 0.6 }).addTo(vigilancePolygonGroup);
+            poly2.bindPopup("🚨 Vigilance Rouge Vent Violent Actives");
+        }
+
+        function changeAltTemp(alt) {
+            alert(`Altitude ajustée pour la carte Température : ${alt} hPa`);
+        }
+
+        // ================= GRAPHICS MODULE (Page 1) =================
+        function initChart() {
+            const ctx = document.getElementById('weather-trend-chart').getContext('2d');
+            trendChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: ['00:00', '04:00', '08:00', '12:00', '16:00', '20:00'],
+                    datasets: [
+                        {
+                            label: 'Temp (°C)',
+                            data: [12, 11, 14, 18, 17, 13],
+                            borderColor: '#38bdf8',
+                            backgroundColor: 'rgba(56, 189, 248, 0.1)',
+                            borderWidth: 2,
+                            tension: 0.3,
+                            fill: true
+                        },
+                        {
+                            label: 'Pluie (mm)',
+                            data: [0, 0.5, 0, 0, 1.2, 0],
+                            borderColor: '#818cf8',
+                            backgroundColor: 'rgba(129, 140, 248, 0.1)',
+                            borderWidth: 2,
+                            tension: 0.3,
+                            fill: true
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: false }
+                    },
+                    scales: {
+                        x: { grid: { display: false }, ticks: { color: '#94a3b8', font: { size: 9 } } },
+                        y: { grid: { color: '#334155' }, ticks: { color: '#94a3b8', font: { size: 9 } } }
+                    }
+                }
+            });
+        }
+
+        function updateChart(weather) {
+            if(!trendChart) return;
+            const baseT = weather.temp;
+            const baseR = weather.rain;
+            trendChart.data.datasets[0].data = [
+                baseT - 4, baseT - 5, baseT, baseT + 3, baseT + 2, baseT - 1
+            ];
+            trendChart.data.datasets[1].data = [
+                0, baseR * 0.5, baseR, baseR * 1.5, baseR, 0
+            ];
+            trendChart.update();
+        }
+
+        // ================= DYNAMIC OBSERVATIONS FORM & MAP MARKERS (Page 5-6) =================
+        const obsOptions = {
+            pluie: ["Bruine", "Faible", "Modéré", "Forte", "Abondante"],
+            nebulosite: ["Ciel clair", "Éclaircies", "Nuageux", "Couvert", "Nuages orageux"],
+            eclairs: ["Tonnerre uniquement", "Quelques éclairs", "Nombreux éclairs", "Très nombreux éclairs"],
+            vent: ["Vent faible (1-3 bft)", "Vent modéré (4-5 bft)", "Vent fort (6-7 bft)", "Vent tempétueux (8-9 bft)", "Tempête (10-11 bft)", "Violente tempête (12 bft)"],
+            verglas: ["Givre", "Glace au sol", "Pluie verglaçante [mm]"],
+            temp: ["Gel fort", "Gelée blanche", "Froid modéré", "Tempéré", "Forte chaleur", "Canicule"],
+            neige: ["Faible", "Modérée", "Forte"],
+            brouillard: ["Brume", "Brouillard peu dense", "Brouillard dense", "Brouillard très dense"],
+            speciaux: ["Tuba", "Tornade [EF]", "Fortes vagues [m]", "Inondations", "Grêle [cm]", "Avalanches", "Tourbillon de poussières"]
+        };
+
+        // Dynamic metrics & units inside brackets as requested
+        const obsUnits = {
+            pluie: { label: "Pluie relevée [mm/h]", defaultVal: "1.5" },
+            nebulosite: { label: "Couverture nuageuse [%]", defaultVal: "75" },
+            eclairs: { label: "Éclairs [éclairs/minute]", defaultVal: "5" },
+            vent: { label: "Vitesse vent moyen [km/h]", defaultVal: "25" },
+            verglas: { label: "Pluie verglaçante [mm]", defaultVal: "1.2" },
+            temp: { label: "Température sol [°C]", defaultVal: "18" },
+            neige: { label: "Épaisseur de neige [cm]", defaultVal: "5" },
+            brouillard: { label: "Visibilité [m]", defaultVal: "150" },
+            speciaux: { label: "Indice / Valeur [Unités]", defaultVal: "0" }
+        };
+
+        // Form updater when selecting main category
+        function updateObsOptions() {
+            const cat = document.getElementById('obs-category').value;
+            const valSelect = document.getElementById('obs-value');
+            valSelect.innerHTML = "";
+            
+            // Hydrate possibilities dropdown
+            obsOptions[cat].forEach(option => {
+                const opt = document.createElement('option');
+                opt.value = option;
+                opt.innerText = option;
+                valSelect.appendChild(opt);
+            });
+
+            // Dynamically change label and input unit as specified
+            const unitMeta = obsUnits[cat];
+            document.getElementById('lbl-dynamic-measure').innerText = unitMeta.label;
+            document.getElementById('obs-dynamic-measure').value = unitMeta.defaultVal;
+        }
+
+        function submitObservation(e) {
+            e.preventDefault();
+            const cat = document.getElementById('obs-category').value;
+            const val = document.getElementById('obs-value').value;
+            const location = document.getElementById('obs-location').value;
+            const measure = parseFloat(document.getElementById('obs-dynamic-measure').value);
+
+            // Fetch simulated/dynamic geoloc coords near current city
+            const lat = currentCoords[0] + (Math.random() - 0.5) * 0.15;
+            const lon = currentCoords[1] + (Math.random() - 0.5) * 0.15;
+
+            addMockObservation(cat, val, location, measure, lat, lon);
+        }
+
+        function addMockObservation(cat, val, location, measure, lat, lon) {
+            const timeline = document.getElementById('observations-timeline');
+            const now = new Date();
+            const timeStr = now.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+
+            // 1. Add Card item to timeline
+            const item = document.createElement('div');
+            item.className = "bg-slate-900 border border-slate-800 p-2.5 rounded-xl text-xs flex justify-between items-center transition hover:border-slate-700";
+            item.innerHTML = `
+                <div>
+                    <span class="font-semibold text-slate-200 block">${location} <span class="text-[10px] text-slate-400 font-normal">à ${timeStr} (Coordonnées : ${lat.toFixed(3)}, ${lon.toFixed(3)})</span></span>
+                    <span class="text-xs text-sky-300 font-mono font-medium">${cat.toUpperCase()} ➔ ${val}</span>
+                </div>
+                <div class="text-right">
+                    <span class="text-[10px] bg-slate-800 px-2 py-0.5 rounded font-bold text-white">${measure} ${getUnitSymbol(cat)}</span>
+                </div>
+            `;
+            timeline.insertBefore(item, timeline.firstChild);
+
+            // 2. Add dynamic marker to leafletMap with customized color
+            if (leafletMap) {
+                const catColors = {
+                    pluie: '#3b82f6', nebulosite: '#94a3b8', eclairs: '#eab308',
+                    vent: '#10b981', verglas: '#a855f7', temp: '#f43f5e',
+                    neige: '#38bdf8', brouillard: '#475569', speciaux: '#f97316'
+                };
+                const color = catColors[cat] || '#38bdf8';
+                
+                const customMarker = L.circleMarker([lat, lon], {
+                    radius: 9,
+                    color: color,
+                    fillColor: '#ffffff',
+                    fillOpacity: 0.8,
+                    weight: 3
+                }).addTo(mapMarkersGroup);
+
+                customMarker.bindPopup(`
+                    <div class="text-slate-900">
+                        <strong class="text-sm block">${location}</strong>
+                        <span class="text-xs block">Catégorie : <b>${cat.toUpperCase()}</b></span>
+                        <span class="text-xs block">Valeur : <b>${val}</b> (${measure} ${getUnitSymbol(cat)})</span>
+                        <span class="text-[10px] text-slate-400 block mt-1">Relevé participatif TABO - ${timeStr}</span>
+                    </div>
+                `);
+                
+                // Fly dynamically to highlight new observation point on Leaflet
+                leafletMap.flyTo([lat, lon], 10);
+            }
+        }
+
+        function getUnitSymbol(cat) {
+            if (cat === "pluie" || cat === "verglas") return "mm/h";
+            if (cat === "nebulosite") return "%";
+            if (cat === "eclairs") return "é/min";
+            if (cat === "vent") return "km/h";
+            if (cat === "temp") return "°C";
+            if (cat === "neige") return "cm";
+            if (cat === "brouillard") return "m";
+            return "";
+        }
+
+        function clearObservations() {
+            document.getElementById('observations-timeline').innerHTML = "";
+            if (mapMarkersGroup) {
+                mapMarkersGroup.clearLayers();
+            }
+        }
+
+        // ================= SPREADSHEET TABLE GENERATOR EXPORT =================
+        function exportToCSV() {
+            let activeWeather = config.mode === 'sim' ? config.sim : currentData;
+            
+            let csvContent = "data:text/csv;charset=utf-8,";
+            csvContent += "Module Météo,Métrique,Valeur relevée,Seuil Alerte\r\n";
+            csvContent += `Météo Actuelle,Température,${activeWeather.temp.toFixed(1)} °C,Seuils variable\r\n`;
+            csvContent += `Météo Actuelle,Humidité,${activeWeather.humidity} %,90% saturé\r\n`;
+            csvContent += `Météo Actuelle,Vent moyen,${activeWeather.wind.toFixed(1)} km/h,>40 km/h\r\n`;
+            csvContent += `Météo Actuelle,Vent rafale,${activeWeather.gust.toFixed(1)} km/h,>60 km/h\r\n`;
+            csvContent += `Météo Actuelle,Précipitations,${activeWeather.rain} mm/h,>10mm/h\r\n`;
+            csvContent += `Météo Actuelle,Neige,${activeWeather.snow} cm/h,>1cm/h\r\n`;
+            csvContent += `Météo Actuelle,CAPE Convectif,${activeWeather.cape} J/kg,>500 modéré\r\n`;
+            csvContent += `Météo Actuelle,Visibilité,${activeWeather.visibility} km,<0.5km\r\n`;
+
+            const encodedUri = encodeURI(csvContent);
+            const link = document.createElement("a");
+            link.setAttribute("href", encodedUri);
+            link.setAttribute("download", `TABO_Weather_Data_${new Date().toISOString().slice(0,10)}.csv`);
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        }
+    </script>
+</body>
+</html>
